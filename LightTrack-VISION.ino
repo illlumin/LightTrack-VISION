@@ -545,7 +545,7 @@ void ledTask(void* parameter) {
 void setupWiFi() {
   // Try connecting to your existing WiFi
   WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID, WIFI_PASS)
+  WiFi.begin(WIFI_SSID, WIFI_PASS);
   Serial.print("Connecting to WiFi");
 
   unsigned long startAttemptTime = millis();
