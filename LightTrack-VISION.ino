@@ -207,16 +207,32 @@ void loop() {
 // --- CORE LOGIC FUNCTIONS ---
 int mapDistanceToLED(int rawDistance) {
   const int (*selectedCalibration)[2] = (currentLedDensity == 60) ? calibration60 : calibration30;
-  rawDistance = constrain(rawDistance, MIN_PROCESS_DISTANCE, MAX_PROCESS_DISTANCE);
+
+  // Apply a small low-pass filter to reduce jitter in the measured distance
+  static float filteredDistance = -1.0f;
+  if (filteredDistance < 0.0f) {
+    filteredDistance = rawDistance;
+  } else {
+    const float alpha = 0.15f; // lower alpha => more smoothing
+    filteredDistance += (rawDistance - filteredDistance) * alpha;
+  }
+
+  int smoothedDistance = round(filteredDistance);
+  smoothedDistance = constrain(smoothedDistance, MIN_PROCESS_DISTANCE, MAX_PROCESS_DISTANCE);
+  int mappedLED = selectedCalibration[0][1];
   for (int i = 0; i < CALIBRATION_POINTS - 1; i++) {
-    if (rawDistance >= selectedCalibration[i][0] && rawDistance <= selectedCalibration[i+1][0]) {
-      if (selectedCalibration[i+1][0] == selectedCalibration[i][0]) return selectedCalibration[i][1];
-      float proportion = (float)(rawDistance - selectedCalibration[i][0]) / (float)(selectedCalibration[i+1][0] - selectedCalibration[i][0]);
-      return constrain(selectedCalibration[i][1] + round(proportion * (selectedCalibration[i+1][1] - selectedCalibration[i][1])), 0, currentNumLeds - 1);
+    if (smoothedDistance >= selectedCalibration[i][0] && smoothedDistance <= selectedCalibration[i+1][0]) {
+      if (selectedCalibration[i+1][0] == selectedCalibration[i][0]) { mappedLED = selectedCalibration[i][1]; break; }
+      float proportion = (float)(smoothedDistance - selectedCalibration[i][0]) / (float)(selectedCalibration[i+1][0] - selectedCalibration[i][0]);
+      mappedLED = selectedCalibration[i][1] + round(proportion * (selectedCalibration[i+1][1] - selectedCalibration[i][1]));
+      break;
     }
   }
-  if (rawDistance >= selectedCalibration[CALIBRATION_POINTS-1][0]) return constrain(selectedCalibration[CALIBRATION_POINTS-1][1], 0, currentNumLeds - 1);
-  return constrain(selectedCalibration[0][1], 0, currentNumLeds - 1);
+  if (smoothedDistance >= selectedCalibration[CALIBRATION_POINTS-1][0]) mappedLED = selectedCalibration[CALIBRATION_POINTS-1][1];
+  mappedLED = constrain(mappedLED, 0, currentNumLeds - 1);
+  // Invert the mapping so the radar corresponds to the opposite end of the LED strip
+  int invertedLED = (currentNumLeds - 1) - mappedLED;
+  return constrain(invertedLED, 0, currentNumLeds - 1);
 }
 
 bool isTargetInInactiveZone(int targetX, int targetY) {
